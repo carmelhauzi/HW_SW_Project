@@ -1,0 +1,9 @@
+[2026-08-26] in this project we need to document all our prompts to AI, so I need you to first create a file and call it "prompts.txt" and from now on insert all the prompts to this file
+
+[2026-08-26] the project is to improve 2 benchmarks from "Python Performance Benchmark Suite", the specific benchmark we selected is "nbody" and "raytrace", can you copy the origin code and tests of this 2 benchmark to this repo so we can work on it? I want to be able to run also the original benchmark and my imrovment on the original tests to see if they are pass, and also be able to run performance tools on each version
+
+[2026-08-26] is the tests are the original the repo?
+
+[2026-08-26] what should I do now if I want to run pyperformance on the old and the new benchmarks?
+
+[2026-08-26] commit and push
