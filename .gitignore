@@ -6,3 +6,7 @@ venv/
 *.json
 *.prof
 *.ppm
+results/
+runs.txt
+commands.txt
+.flamegraph-tools/

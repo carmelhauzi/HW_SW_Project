@@ -7,3 +7,49 @@
 [2026-08-26] what should I do now if I want to run pyperformance on the old and the new benchmarks?
 
 [2026-08-26] commit and push
+
+[2026-08-27] I need one more thing before we can start working on the optimization. I need you to write the script dscribed below. remember I will run it on QEMU
+• File Name: script_<name_of_benchmark>.sh
+o Contents:
+▪ Environment setup and dependency installation.
+▪ Benchmark execution using pyperformance or other profiling tools.
+▪ Flame graph and performance data generation.
+▪ Post-optimization benchmark execution with performance
+comparison.
+
+[2026-08-27] you forgot to record the prompt in prompts.txt , make sure it will happen for all the prompts on this project
+
+[2026-08-27] I run the script_nbody.sh on the QEMU and saved you the output in runs.txt, can you first add this file to .gitignore, and second explain the problem
+
+[2026-08-27] do you have something to say about
+WARNING: the benchmark result may be unstable
+?
+
+[2026-08-27] this is the staff of the course send us "perf record -F 999 -g -- python3-dbg -m pyperformance run --bench json_dumps" for example, it is not include --fast so I dont think we need to run it on fast mode
+
+[2026-08-27] I can tell you that I already try to use the staff command and it doesnt work so I run this instead:
+"perf record -F 999 -e cpu-clock -g -- python3-dbg -m pyperformance run --bench nbody"
+
+[2026-08-27] but in the script you run the commad with the right manifest?
+
+[2026-08-27] I updated run.txt with the output, tell me what is wrong
+
+[2026-08-27] can you look at the results folder and tell if the run went well?
+
+[2026-08-27] so why the command in the flamegraph contain --fast, it is not what we talked about
+
+[2026-08-27] I dont want the fallbacks, I want it to work the way we need
+
+[2026-08-27] the output is in run.txt
+
+[2026-08-27] I put the output in the tun.txt, now it stack in Generating flame graph for original, and also why the warning about unstable result is back?
+
+[2026-08-27] I put the output in run.txt
+
+[2026-08-27] I switch results to the new one
+
+[2026-08-27] can you add to the script to run also "perf report --stdio > perf_report.txt" and that perf_report will be also in the results dict?
+
+[2026-08-27] add command.txt to gitignore
+
+[2026-08-27] commit and push the changes
