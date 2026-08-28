@@ -53,3 +53,17 @@ WARNING: the benchmark result may be unstable
 [2026-08-27] add command.txt to gitignore
 
 [2026-08-27] commit and push the changes
+
+[2026-08-28] I see from the flame graph that a lot of time go on _PyEval_EvalFrameDefault, what this function do?
+
+[2026-08-28] can you convert the code in the optimized version to use numpy instead?
+
+[2026-08-28] I want to think of another approach that related to data structure, can you use array instead of list, and use local variable to fast the calculation
+
+[2026-08-28] look at the results
+
+[2026-08-28] yes
+
+[2026-08-28] here is the new results
+
+[2026-08-28] commit and push

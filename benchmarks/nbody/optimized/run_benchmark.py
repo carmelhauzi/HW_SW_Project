@@ -12,6 +12,24 @@ http://benchmarksgame.alioth.debian.org/u64q/program.php?test=nbody&lang=python3
 
 Contributed by Kevin Carson.
 Modified by Tupteq, Fredrik Johansson, and Daniel Nanz.
+
+Optimized variant: bodies are still stored the same way as the original
+([x, y, z] / [vx, vy, vz] lists + mass), and per-body position/velocity is
+still extracted via list/tuple destructuring (CPython's UNPACK_SEQUENCE is
+a single, cheap opcode - repeatedly indexing with body[0]/body[1]/body[2]
+instead is measurably *slower*, since each indexed read costs its own
+LOAD_FAST/LOAD_CONST/BINARY_SUBSCR opcode triplet). What changes is *how
+often* that destructuring happens and how the pairwise loop runs:
+- Since there are always exactly 5 bodies / 10 pairs, the pairwise force
+  loop is manually unrolled, removing the FOR_ITER looping overhead.
+- Each body's position/velocity is destructured once per simulation step
+  and reused across all pairs it's a member of, instead of the original
+  re-destructuring a body's position anew for every pair it appears in
+  (each body is in 4 of the 10 pairs, so the original repeats that work
+  4x per body per step).
+- Velocity is accumulated in local variables across all 10 pairs and
+  written back to the body's velocity list once per step, instead of a
+  subscript read-modify-write (v[i] -= ...) on every pair.
 """
 
 import pyperf
@@ -19,17 +37,6 @@ import pyperf
 __contact__ = "collinwinter@google.com (Collin Winter)"
 DEFAULT_ITERATIONS = 20000
 DEFAULT_REFERENCE = 'sun'
-
-
-def combinations(l):
-    """Pure-Python implementation of itertools.combinations(l, 2)."""
-    result = []
-    for x in range(len(l) - 1):
-        ls = l[x + 1:]
-        for y in ls:
-            result.append((l[x], y))
-    return result
-
 
 PI = 3.14159265358979323
 SOLAR_MASS = 4 * PI * PI
@@ -72,40 +79,135 @@ BODIES = {
 
 
 SYSTEM = list(BODIES.values())
-PAIRS = combinations(SYSTEM)
 
 
-def advance(dt, n, bodies=SYSTEM, pairs=PAIRS):
-    for i in range(n):
-        for (([x1, y1, z1], v1, m1),
-             ([x2, y2, z2], v2, m2)) in pairs:
-            dx = x1 - x2
-            dy = y1 - y2
-            dz = z1 - z2
-            mag = dt * ((dx * dx + dy * dy + dz * dz) ** (-1.5))
-            b1m = m1 * mag
-            b2m = m2 * mag
-            v1[0] -= dx * b2m
-            v1[1] -= dy * b2m
-            v1[2] -= dz * b2m
-            v2[0] += dx * b1m
-            v2[1] += dy * b1m
-            v2[2] += dz * b1m
-        for (r, [vx, vy, vz], m) in bodies:
-            r[0] += dt * vx
-            r[1] += dt * vy
-            r[2] += dt * vz
+def advance(dt, n, bodies=SYSTEM):
+    (p0, v0, m0), (p1, v1, m1), (p2, v2, m2), (p3, v3, m3), (p4, v4, m4) = bodies
+    for _ in range(n):
+        x0, y0, z0 = p0
+        x1, y1, z1 = p1
+        x2, y2, z2 = p2
+        x3, y3, z3 = p3
+        x4, y4, z4 = p4
+        vx0, vy0, vz0 = v0
+        vx1, vy1, vz1 = v1
+        vx2, vy2, vz2 = v2
+        vx3, vy3, vz3 = v3
+        vx4, vy4, vz4 = v4
+
+        # pairwise force accumulation (locals only, no subscripting)
+        dx = x0 - x1; dy = y0 - y1; dz = z0 - z1
+        mag = dt * (dx * dx + dy * dy + dz * dz) ** (-1.5)
+        b1m = m0 * mag; b2m = m1 * mag
+        vx0 -= dx * b2m; vy0 -= dy * b2m; vz0 -= dz * b2m
+        vx1 += dx * b1m; vy1 += dy * b1m; vz1 += dz * b1m
+
+        dx = x0 - x2; dy = y0 - y2; dz = z0 - z2
+        mag = dt * (dx * dx + dy * dy + dz * dz) ** (-1.5)
+        b1m = m0 * mag; b2m = m2 * mag
+        vx0 -= dx * b2m; vy0 -= dy * b2m; vz0 -= dz * b2m
+        vx2 += dx * b1m; vy2 += dy * b1m; vz2 += dz * b1m
+
+        dx = x0 - x3; dy = y0 - y3; dz = z0 - z3
+        mag = dt * (dx * dx + dy * dy + dz * dz) ** (-1.5)
+        b1m = m0 * mag; b2m = m3 * mag
+        vx0 -= dx * b2m; vy0 -= dy * b2m; vz0 -= dz * b2m
+        vx3 += dx * b1m; vy3 += dy * b1m; vz3 += dz * b1m
+
+        dx = x0 - x4; dy = y0 - y4; dz = z0 - z4
+        mag = dt * (dx * dx + dy * dy + dz * dz) ** (-1.5)
+        b1m = m0 * mag; b2m = m4 * mag
+        vx0 -= dx * b2m; vy0 -= dy * b2m; vz0 -= dz * b2m
+        vx4 += dx * b1m; vy4 += dy * b1m; vz4 += dz * b1m
+
+        dx = x1 - x2; dy = y1 - y2; dz = z1 - z2
+        mag = dt * (dx * dx + dy * dy + dz * dz) ** (-1.5)
+        b1m = m1 * mag; b2m = m2 * mag
+        vx1 -= dx * b2m; vy1 -= dy * b2m; vz1 -= dz * b2m
+        vx2 += dx * b1m; vy2 += dy * b1m; vz2 += dz * b1m
+
+        dx = x1 - x3; dy = y1 - y3; dz = z1 - z3
+        mag = dt * (dx * dx + dy * dy + dz * dz) ** (-1.5)
+        b1m = m1 * mag; b2m = m3 * mag
+        vx1 -= dx * b2m; vy1 -= dy * b2m; vz1 -= dz * b2m
+        vx3 += dx * b1m; vy3 += dy * b1m; vz3 += dz * b1m
+
+        dx = x1 - x4; dy = y1 - y4; dz = z1 - z4
+        mag = dt * (dx * dx + dy * dy + dz * dz) ** (-1.5)
+        b1m = m1 * mag; b2m = m4 * mag
+        vx1 -= dx * b2m; vy1 -= dy * b2m; vz1 -= dz * b2m
+        vx4 += dx * b1m; vy4 += dy * b1m; vz4 += dz * b1m
+
+        dx = x2 - x3; dy = y2 - y3; dz = z2 - z3
+        mag = dt * (dx * dx + dy * dy + dz * dz) ** (-1.5)
+        b1m = m2 * mag; b2m = m3 * mag
+        vx2 -= dx * b2m; vy2 -= dy * b2m; vz2 -= dz * b2m
+        vx3 += dx * b1m; vy3 += dy * b1m; vz3 += dz * b1m
+
+        dx = x2 - x4; dy = y2 - y4; dz = z2 - z4
+        mag = dt * (dx * dx + dy * dy + dz * dz) ** (-1.5)
+        b1m = m2 * mag; b2m = m4 * mag
+        vx2 -= dx * b2m; vy2 -= dy * b2m; vz2 -= dz * b2m
+        vx4 += dx * b1m; vy4 += dy * b1m; vz4 += dz * b1m
+
+        dx = x3 - x4; dy = y3 - y4; dz = z3 - z4
+        mag = dt * (dx * dx + dy * dy + dz * dz) ** (-1.5)
+        b1m = m3 * mag; b2m = m4 * mag
+        vx3 -= dx * b2m; vy3 -= dy * b2m; vz3 -= dz * b2m
+        vx4 += dx * b1m; vy4 += dy * b1m; vz4 += dz * b1m
+
+        # write updated velocities back, then advance positions using them
+        v0[0] = vx0; v0[1] = vy0; v0[2] = vz0
+        v1[0] = vx1; v1[1] = vy1; v1[2] = vz1
+        v2[0] = vx2; v2[1] = vy2; v2[2] = vz2
+        v3[0] = vx3; v3[1] = vy3; v3[2] = vz3
+        v4[0] = vx4; v4[1] = vy4; v4[2] = vz4
+        p0[0] += dt * vx0; p0[1] += dt * vy0; p0[2] += dt * vz0
+        p1[0] += dt * vx1; p1[1] += dt * vy1; p1[2] += dt * vz1
+        p2[0] += dt * vx2; p2[1] += dt * vy2; p2[2] += dt * vz2
+        p3[0] += dt * vx3; p3[1] += dt * vy3; p3[2] += dt * vz3
+        p4[0] += dt * vx4; p4[1] += dt * vy4; p4[2] += dt * vz4
 
 
-def report_energy(bodies=SYSTEM, pairs=PAIRS, e=0.0):
-    for (((x1, y1, z1), v1, m1),
-         ((x2, y2, z2), v2, m2)) in pairs:
-        dx = x1 - x2
-        dy = y1 - y2
-        dz = z1 - z2
-        e -= (m1 * m2) / ((dx * dx + dy * dy + dz * dz) ** 0.5)
-    for (r, [vx, vy, vz], m) in bodies:
-        e += m * (vx * vx + vy * vy + vz * vz) / 2.
+def report_energy(bodies=SYSTEM, e=0.0):
+    (p0, v0, m0), (p1, v1, m1), (p2, v2, m2), (p3, v3, m3), (p4, v4, m4) = bodies
+    x0, y0, z0 = p0
+    x1, y1, z1 = p1
+    x2, y2, z2 = p2
+    x3, y3, z3 = p3
+    x4, y4, z4 = p4
+
+    dx = x0 - x1; dy = y0 - y1; dz = z0 - z1
+    e -= (m0 * m1) / (dx * dx + dy * dy + dz * dz) ** 0.5
+    dx = x0 - x2; dy = y0 - y2; dz = z0 - z2
+    e -= (m0 * m2) / (dx * dx + dy * dy + dz * dz) ** 0.5
+    dx = x0 - x3; dy = y0 - y3; dz = z0 - z3
+    e -= (m0 * m3) / (dx * dx + dy * dy + dz * dz) ** 0.5
+    dx = x0 - x4; dy = y0 - y4; dz = z0 - z4
+    e -= (m0 * m4) / (dx * dx + dy * dy + dz * dz) ** 0.5
+    dx = x1 - x2; dy = y1 - y2; dz = z1 - z2
+    e -= (m1 * m2) / (dx * dx + dy * dy + dz * dz) ** 0.5
+    dx = x1 - x3; dy = y1 - y3; dz = z1 - z3
+    e -= (m1 * m3) / (dx * dx + dy * dy + dz * dz) ** 0.5
+    dx = x1 - x4; dy = y1 - y4; dz = z1 - z4
+    e -= (m1 * m4) / (dx * dx + dy * dy + dz * dz) ** 0.5
+    dx = x2 - x3; dy = y2 - y3; dz = z2 - z3
+    e -= (m2 * m3) / (dx * dx + dy * dy + dz * dz) ** 0.5
+    dx = x2 - x4; dy = y2 - y4; dz = z2 - z4
+    e -= (m2 * m4) / (dx * dx + dy * dy + dz * dz) ** 0.5
+    dx = x3 - x4; dy = y3 - y4; dz = z3 - z4
+    e -= (m3 * m4) / (dx * dx + dy * dy + dz * dz) ** 0.5
+
+    vx0, vy0, vz0 = v0
+    vx1, vy1, vz1 = v1
+    vx2, vy2, vz2 = v2
+    vx3, vy3, vz3 = v3
+    vx4, vy4, vz4 = v4
+    e += m0 * (vx0 * vx0 + vy0 * vy0 + vz0 * vz0) / 2.
+    e += m1 * (vx1 * vx1 + vy1 * vy1 + vz1 * vz1) / 2.
+    e += m2 * (vx2 * vx2 + vy2 * vy2 + vz2 * vz2) / 2.
+    e += m3 * (vx3 * vx3 + vy3 * vy3 + vz3 * vz3) / 2.
+    e += m4 * (vx4 * vx4 + vy4 * vy4 + vz4 * vz4) / 2.
     return e
 
 
