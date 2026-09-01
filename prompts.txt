@@ -67,3 +67,73 @@ WARNING: the benchmark result may be unstable
 [2026-08-28] here is the new results
 
 [2026-08-28] commit and push
+
+[2026-08-29] I've had an optimization to _lightIsVisible. at the original profiling (rt_original.prof and flamegraph-raytrace-original.svg) the ray creation took 3.5 seconds total. I've optimized it to create less rays so at the optimized version profiling (rt_opt.prof and flame_opt.prof) it took only 0.5 seconds total. but the total running time went from 28 seconds to 21 seconds. did I understand it correctly? how is that possible?
+
+[2026-08-29] but the total time of init was 3.5 seconds, so even if we called less functions it's should appear under the 3.5 seconds. is that correct? maybe I've understood the numbers differently and it's not 3.5 seconds
+
+[2026-08-29] I see that vector and Point (and also other classes) used a lot for computations. will it help to declare them as dataclass? or just use the __slots__ ? the python version on the QEMU is 3.10, so only don't stuff that will fit this python version
+
+[2026-08-31] I need to implement hardware acceleration for part of the Raytrace benchmark. For this part, I need to find a bottleneck in the benchmark and design a hardware accelerator for it.
+I was thinking about accelerating the intersectionTime function. This function is called many times during the benchmark because it is used to check whether a ray intersects a sphere and, if it does, to calculate the intersection time.
+The function mainly does arithmetic operations, so I think it could be  good for hardware acceleration, since some of these calculations can be done in parallel.
+For the hardware design, I was thinking about having a module for the square root calculation, and another module for the arithmetic operations, such as vector subtraction, dot products, and the discriminant calculation. These modules would basically implement in hardware the calculations that are currently done in Python inside intersectionTime.
+I was also thinking about using an FSM to control the different stages of the calculation and the communication between the modules.
+What do you think about this hardware acceleration idea? Does this architecture make sense?
+
+[2026-08-31] So, if I understand correctly, to reduce the overhead of transferring data between the software and the hardware, we should move the accelerator one level higher?
+Instead of sending one ray, sphere pair to the hardware for every call to intersectionTime, the hardware accelerator would receive one ray with all the spheres.
+then it wold calculate the intersection with each sphere using a pipelined datapath, calculate the different t values, and finally find the sphere with the minimum t, which is the closest intersection.
+So basically, instead of accelerating only intersectionTime, we would implement in hardware the layer above it as well, which finds the nearest object hit by the ray.
+
+[2026-08-31] in order to implement pipeline and make the calculations in parralel, we will have 1 unit of intersection and it will containt many units of sub, mult, disc, so when sphere 1 is in the second stage sphere 2 can enter to the first?
+
+[2026-08-31] I want to make sure I understand the new flow correctly.
+The scene objects will be loaded to the hardware once. Then, when rayColour needs to find the closest intersection, instead of calling intersectionTime for every object in Python, it will send the ray (point and direction) to the hardware.
+The hardware will calculate the intersections with all the objects using the pipelined design, find the minimum valid t, and return t and the object index to Python. Then Python will continue the rest of rayColour normally.
+Is this the correct flow?
+
+[2026-08-31] We decided to keep the Halfspace intersection in Python and accelerate only the sphere intersections in hardware.
+So for each ray, Python will send the ray point and direction to the hardware. The hardware will calculate the intersections with all the spheres using the pipelined design and return (valid, sphere_index, t_sphere) for the closest valid sphere.
+Python will calculate the Halfspace intersection separately, compare its t with t_sphere, choose the closest one, and then continue rayColour normally.
+
+[2026-08-31] I want to start implementing the SystemVerilog hardware accelerator for Raytrace. Before you start, this is the architecture we want to use. Please follow this design and implement the modules in the order below.
+
+Python continues running render and rayColour normally. When rayColour needs to find the closest intersection, instead of calculating Sphere.intersectionTime for all 7 spheres in Python, it sends the Ray to the hardware accelerator.
+
+The 7 spheres are loaded into the hardware once at the beginning of each render. For every sphere we store:
+center_x, center_y, center_z / radius_squared / sphere_index from 0 to 6
+
+For every Ray, Python sends: ray.point (x,y,z) / ray.vector (x,y,z), already normalized by Python.
+
+The hardware sends the 7 spheres one after another through one intersection pipeline. The pipeline should be able to accept a new sphere every clock, so different spheres can be in different pipeline stages at the same time.
+
+For each sphere, calculate the same math as Sphere.intersectionTime:
+cp = center - ray.point / v = cp dot ray.vector / cpcp = cp dot cp / disc = radius_squared - cpcp + v*v
+If disc < 0, no hit. Otherwise: t = v - sqrt(disc). Hit valid only if t > -EPSILON, EPSILON = 1e-5.
+
+When results leave the pipeline, a reduction unit keeps the smallest valid t and its sphere index. Update the minimum only when new_t < best_t, not <=, so tie-breaking stays the same as Python.
+
+At the end the hardware returns: valid / sphere_index / t.
+
+The Halfspace is not implemented in hardware. Python computes Halfspace.intersectionTime(ray) after the hardware result and selects it only if t_halfspace < t_sphere strictly. Then Python continues normally (pointAtTime, normalAt, colourAt, reflections, etc.).
+
+Implementation order:
+1. sphere_intersection_pipeline.sv - main datapath, one Ray + one Sphere + sphere_index + in_valid; pipeline with registers between stages, index and valid move through the pipeline; initiation interval of one clock; sqrt must not block the pipeline (use pipelined sqrt that accepts a new input every clock, explain how). Outputs: out_valid, hit_valid, sphere_index_out, t.
+2. sphere_min_reducer.sv - keeps best_valid, best_t, best_index; ignore hit_valid=0; update only when new_t < best_t; after all 7 results output the closest sphere.
+3. sphere_storage.sv - store the 7 spheres' params; setup interface for software to load center_x/y/z and radius_squared per sphere index at render start.
+4. ray_sphere_accelerator.sv - top module; on new Ray store its data and feed spheres 0..6 into the pipeline one per clock; results into the reducer; after 7 results return result_valid, hit_valid, sphere_index, t. First implementation: one Ray at a time, but still pipeline between the spheres of the same Ray.
+
+Before writing the code: show the final module list, how the modules connect, the exact pipeline stages, and the data widths/number representation recommended, especially how the floating-point operations and pipelined sqrt will be implemented. Then implement the modules in order, one at a time, with a short explanation for each. Do not change the architecture without first explaining why the change is needed.
+
+[2026-09-01] Let's keep the implementation simpler and do it step by step. The architecture we decided on stays the same. I don't want to implement multiple rays in parallel, one ray at a time is enough. Implement the Verilog in this order: sphere_intersection_pipeline.sv, sphere_min_reducer.sv, sphere_storage.sv, ray_sphere_accelerator.sv that connects everything. Do one module at a time. Before writing each module, first explain: what the module does, its exact inputs, its exact outputs, what happens inside it, and for the intersection module what the pipeline stages are. Then write the SystemVerilog code and explain the important parts. Don't move to the next module until we review the current one. Start now only with sphere_intersection_pipeline.sv - first explain its inputs, outputs and pipeline stages. Do not write the code yet.
+
+[2026-09-01] you can start implement this module based on the design
+
+[2026-09-01] now we will implememt the min module
+
+[2026-09-01] now we need to implement a module that stores all the params on the 7 spheres, lets implement it
+
+[2026-09-01] now we need a top module that connects all the modules, it can implement a FSM
+
+[2026-09-01] do git add, commit and push also to the rtl files, give a informative commit msg
