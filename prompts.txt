@@ -137,3 +137,5 @@ Before writing the code: show the final module list, how the modules connect, th
 [2026-09-01] now we need a top module that connects all the modules, it can implement a FSM
 
 [2026-09-01] do git add, commit and push also to the rtl files, give a informative commit msg
+
+[2026-09-03] I think the current fp_primitives.sv abstraction makes the project unnecessarily complicated. For this project I want the RTL to be simple and easy to understand and explain. Please simplify the design. We do not need separate fp_add, fp_sub, fp_mul, fp_lt, fp_gt, and generic vdelay modules just to model future floating-point IP. For now, implement sphere_intersection_pipeline.sv as a simple behavioral pipelined model using SystemVerilog real variables/registers. Keep the same mathematical stages. Use pipeline registers between the stages so the architecture is still clearly pipelined. I care more about having a clear and logically consistent RTL skeleton than modeling realistic floating-point IP latencies. Please rewrite only sphere_intersection_pipeline.sv in this simpler form first, and explain the code briefly
