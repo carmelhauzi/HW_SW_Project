@@ -138,4 +138,21 @@ Before writing the code: show the final module list, how the modules connect, th
 
 [2026-09-01] do git add, commit and push also to the rtl files, give a informative commit msg
 
+[2026-09-03] I am working on the optimization of nbody and I got this commands from my partner that working on raytrace, can you run them on nbody to create the graphs to nbody original and optimized? # perf the program
+perf record --no-inherit --call-graph dwarf --no-bpf-event -F 999 -g -e cpu-clock -- python3-dbg ./benchmarks/raytrace/optimized2/run_benchmark.py
+# perf -> svg file
+perf script -i perf.data | ~/FlameGraph/stackcollapse-perf.pl | ~/FlameGraph/flamegraph.pl --title "raytrace (original)" > f.svg
+
+# cProfile
+python3 -c "import cProfile, sys; sys.path.insert(0, 'benchmarks/raytrace/optimized'); import run_benchmark as m; cProfile.run('m.bench_raytrace(30, 100, 100, None)', 'rt_opt.prof')"
+python3 -m flameprof rt_original.prof > flamegraph-raytrace-original.svg
+
+[2026-09-03] but look at the raytrace flamegraph, the function is not more complicated and yet we have something to work with
+
+[2026-09-03] I want to examine the option of third benchmark, can you import the code of Pyflate benchmark from pyperformance and create flamegraph for it?
+
+[2026-09-03] where can I see the flamegraph?
+
+[2026-09-03] now we can go to the optimization part, get another copy of th code and all the other staff needed for this part
+
 [2026-09-03] I think the current fp_primitives.sv abstraction makes the project unnecessarily complicated. For this project I want the RTL to be simple and easy to understand and explain. Please simplify the design. We do not need separate fp_add, fp_sub, fp_mul, fp_lt, fp_gt, and generic vdelay modules just to model future floating-point IP. For now, implement sphere_intersection_pipeline.sv as a simple behavioral pipelined model using SystemVerilog real variables/registers. Keep the same mathematical stages. Use pipeline registers between the stages so the architecture is still clearly pipelined. I care more about having a clear and logically consistent RTL skeleton than modeling realistic floating-point IP latencies. Please rewrite only sphere_intersection_pipeline.sv in this simpler form first, and explain the code briefly

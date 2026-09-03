@@ -2,3 +2,4 @@
 name	metafile
 nbody	benchmarks/nbody/original/pyproject.toml
 raytrace	benchmarks/raytrace/original/pyproject.toml
+pyflate	benchmarks/pyflate/original/pyproject.toml
