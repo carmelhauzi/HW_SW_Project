@@ -51,9 +51,6 @@ class BitfieldBase(object):
         while self.bits < n:
             self._more()
 
-    def _mask(self, n):
-        return (1 << n) - 1
-
     def toskip(self):
         return self.bits & 0x7
 
@@ -90,12 +87,12 @@ class Bitfield(BitfieldBase):
     def snoopbits(self, n=8):
         if n > self.bits:
             self.needbits(n)
-        return self.bitfield & self._mask(n)
+        return self.bitfield & ((1 << n) - 1)
 
     def readbits(self, n=8):
         if n > self.bits:
             self.needbits(n)
-        r = self.bitfield & self._mask(n)
+        r = self.bitfield & ((1 << n) - 1)
         self.bits -= n
         self.bitfield >>= n
         return r
@@ -103,23 +100,35 @@ class Bitfield(BitfieldBase):
 
 class RBitfield(BitfieldBase):
 
-    def _more(self):
-        c = self._read(1)
-        self.bitfield <<= 8
-        self.bitfield += ord(c)
-        self.bits += 8
+    def needbits(self, n):
+        # BitfieldBase.needbits() re-reads self.bits/self.bitfield as
+        # attributes on every loop iteration (and again inside each
+        # self._more() call). Attribute access is a dict lookup, which
+        # costs more than reading a local; keep the running bits/bitfield
+        # in locals for the whole loop and write them back to self once,
+        # after the loop exits, instead of on every byte read.
+        bits = self.bits
+        bitfield = self.bitfield
+        while bits < n:
+            c = self._read(1)
+            bitfield <<= 8
+            bitfield += ord(c)
+            bits += 8
+        self.bits = bits
+        self.bitfield = bitfield
 
     def snoopbits(self, n=8):
         if n > self.bits:
             self.needbits(n)
-        return (self.bitfield >> (self.bits - n)) & self._mask(n)
+        return (self.bitfield >> (self.bits - n)) & ((1 << n) - 1)
 
     def readbits(self, n=8):
         if n > self.bits:
             self.needbits(n)
-        r = (self.bitfield >> (self.bits - n)) & self._mask(n)
+        mask = (1 << n) - 1
+        r = (self.bitfield >> (self.bits - n)) & mask
         self.bits -= n
-        self.bitfield &= ~(self._mask(n) << self.bits)
+        self.bitfield &= ~(mask << self.bits)
         return r
 
 
@@ -225,11 +234,12 @@ class HuffmanTable(object):
         cached_length = -1
         cached = None
         for x in self.table:
-            if cached_length != x.bits:
-                cached = field.snoopbits(x.bits)
-                cached_length = x.bits
+            bits = x.bits
+            if cached_length != bits:
+                cached = field.snoopbits(bits)
+                cached_length = bits
             if (reversed and x.reverse_symbol == cached) or (not reversed and x.symbol == cached):
-                field.readbits(x.bits)
+                field.readbits(bits)
                 return x.code
         raise Exception("unfound symbol, even after end of table @%r"
                         % field.tell())
@@ -304,8 +314,14 @@ def bwt_transform(L):
 
 
 def bwt_reverse(L, end):
-    out = []
-    if len(L):
+    n = len(L)
+    # Preallocate the output buffer at its final size instead of growing a
+    # list one append() at a time (each append can trigger a reallocation
+    # + copy as the list grows, and boxes every byte as its own int object
+    # in the list); index-assigning into a fixed-size bytearray never
+    # reallocates and stores raw bytes directly.
+    out = bytearray(n)
+    if n:
         T = bwt_transform(L)
 
         # STRAGENESS WARNING: There was a bug somewhere here in that
@@ -326,9 +342,9 @@ def bwt_reverse(L, end):
         # out where the off-by-one-ism is yet---that actually produced
         # the cyclic loop.
 
-        for i in range(len(L)):
+        for i in range(n):
             end = T[end]
-            out.append(L[end])
+            out[i] = L[end]
 
     return bytes(out)
 
