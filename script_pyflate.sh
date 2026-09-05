@@ -31,6 +31,7 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 BENCH_NAME="pyflate"
 MODE="${1:-normal}"         # normal | fast | rigorous
+PROFILE_LOOPS="${PROFILE_LOOPS:-30}"  # loops for the cProfile/flameprof run
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
@@ -152,6 +153,18 @@ run_variant() {
   perf report --stdio -i "${RESULTS_DIR}/perf_${variant}.data" \
       > "${RESULTS_DIR}/perf_report_${variant}.txt" \
     || die "perf report failed for ${variant}."
+
+  log "Generating cProfile/flameprof flame graph for ${variant}"
+  python3 -c "
+import cProfile, os, sys
+sys.path.insert(0, 'benchmarks/${BENCH_NAME}/${variant}')
+import run_benchmark as m
+filename = os.path.join(os.path.dirname(m.__file__), 'data', 'interpreter.tar.bz2')
+cProfile.run('m.bench_pyflake(${PROFILE_LOOPS}, filename)', '${RESULTS_DIR}/cprofile_${variant}.prof')
+" || die "cProfile run failed for ${variant}."
+  python3 -m flameprof "${RESULTS_DIR}/cprofile_${variant}.prof" \
+      > "${RESULTS_DIR}/flameprof_${variant}.svg" \
+    || die "flameprof rendering failed for ${variant}."
 }
 
 # ---------------------------------------------------------------------------
@@ -185,6 +198,8 @@ log "Done. Artifacts written under ${RESULTS_DIR}/:"
 echo "  pyperformance_{original,optimized}.json  - pyperformance timing results"
 echo "  pyperf_{original,optimized}.json         - pyperf timing results"
 echo "  perf_{original,optimized}.data           - raw perf samples"
-echo "  flamegraph_{original,optimized}.svg      - flame graphs"
+echo "  flamegraph_{original,optimized}.svg      - flame graphs (perf-based)"
 echo "  perf_report_{original,optimized}.txt     - perf report --stdio (hot symbols/callers)"
+echo "  cprofile_{original,optimized}.prof       - raw cProfile stats"
+echo "  flameprof_{original,optimized}.svg       - flame graphs (cProfile/flameprof-based)"
 echo "  compare.txt                              - performance comparison"

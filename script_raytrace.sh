@@ -33,6 +33,7 @@ BENCH_NAME="raytrace"
 MODE="${1:-normal}"         # normal | fast | rigorous
 WIDTH="${WIDTH:-100}"       # raytrace's --width knob
 HEIGHT="${HEIGHT:-100}"     # raytrace's --height knob
+PROFILE_LOOPS="${PROFILE_LOOPS:-30}"  # loops for the cProfile/flameprof run
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
@@ -156,6 +157,17 @@ run_variant() {
   perf report --stdio -i "${RESULTS_DIR}/perf_${variant}.data" \
       > "${RESULTS_DIR}/perf_report_${variant}.txt" \
     || die "perf report failed for ${variant}."
+
+  log "Generating cProfile/flameprof flame graph for ${variant}"
+  python3 -c "
+import cProfile, sys
+sys.path.insert(0, 'benchmarks/${BENCH_NAME}/${variant}')
+import run_benchmark as m
+cProfile.run('m.bench_raytrace(${PROFILE_LOOPS}, ${WIDTH}, ${HEIGHT}, None)', '${RESULTS_DIR}/cprofile_${variant}.prof')
+" || die "cProfile run failed for ${variant}."
+  python3 -m flameprof "${RESULTS_DIR}/cprofile_${variant}.prof" \
+      > "${RESULTS_DIR}/flameprof_${variant}.svg" \
+    || die "flameprof rendering failed for ${variant}."
 }
 
 # ---------------------------------------------------------------------------
@@ -189,7 +201,9 @@ log "Done. Artifacts written under ${RESULTS_DIR}/:"
 echo "  pyperformance_{original,optimized}.json  - pyperformance timing results"
 echo "  pyperf_{original,optimized}.json         - pyperf timing results"
 echo "  perf_{original,optimized}.data           - raw perf samples"
-echo "  flamegraph_{original,optimized}.svg      - flame graphs"
+echo "  flamegraph_{original,optimized}.svg      - flame graphs (perf-based)"
 echo "  perf_report_{original,optimized}.txt     - perf report --stdio (hot symbols/callers)"
+echo "  cprofile_{original,optimized}.prof       - raw cProfile stats"
+echo "  flameprof_{original,optimized}.svg       - flame graphs (cProfile/flameprof-based)"
 echo "  render_{original,optimized}.ppm          - rendered output images"
 echo "  compare.txt                              - performance comparison"

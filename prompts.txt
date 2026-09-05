@@ -156,3 +156,6 @@ python3 -m flameprof rt_original.prof > flamegraph-raytrace-original.svg
 [2026-09-03] now we can go to the optimization part, get another copy of th code and all the other staff needed for this part
 
 [2026-09-03] I think the current fp_primitives.sv abstraction makes the project unnecessarily complicated. For this project I want the RTL to be simple and easy to understand and explain. Please simplify the design. We do not need separate fp_add, fp_sub, fp_mul, fp_lt, fp_gt, and generic vdelay modules just to model future floating-point IP. For now, implement sphere_intersection_pipeline.sv as a simple behavioral pipelined model using SystemVerilog real variables/registers. Keep the same mathematical stages. Use pipeline registers between the stages so the architecture is still clearly pipelined. I care more about having a clear and logically consistent RTL skeleton than modeling realistic floating-point IP latencies. Please rewrite only sphere_intersection_pipeline.sv in this simpler form first, and explain the code briefly
+
+[2026-09-04] can you add this call that create another flamegraph to the scripts? python3 -c "import cProfile, sys; sys.path.insert(0, 'benchmarks/raytrace/original'); import run_benchmark as m; cProfile.run('m.bench_raytrace(30, 100, 100, None)', 'rt_orig.prof')"
+python3 -m flameprof rt_orig.prof > flamegraph-raytrace-original.svg
