@@ -1,5 +1,4 @@
 [benchmarks]
 name	metafile
-nbody	benchmarks/nbody/optimized/pyproject.toml
 raytrace	benchmarks/raytrace/optimized/pyproject.toml
 pyflate	benchmarks/pyflate/optimized/pyproject.toml

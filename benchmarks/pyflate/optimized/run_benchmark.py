@@ -101,12 +101,6 @@ class Bitfield(BitfieldBase):
 class RBitfield(BitfieldBase):
 
     def needbits(self, n):
-        # BitfieldBase.needbits() re-reads self.bits/self.bitfield as
-        # attributes on every loop iteration (and again inside each
-        # self._more() call). Attribute access is a dict lookup, which
-        # costs more than reading a local; keep the running bits/bitfield
-        # in locals for the whole loop and write them back to self once,
-        # after the loop exits, instead of on every byte read.
         bits = self.bits
         bitfield = self.bitfield
         while bits < n:
@@ -315,11 +309,6 @@ def bwt_transform(L):
 
 def bwt_reverse(L, end):
     n = len(L)
-    # Preallocate the output buffer at its final size instead of growing a
-    # list one append() at a time (each append can trigger a reallocation
-    # + copy as the list grows, and boxes every byte as its own int object
-    # in the list); index-assigning into a fixed-size bytearray never
-    # reallocates and stores raw bytes directly.
     out = bytearray(n)
     if n:
         T = bwt_transform(L)
