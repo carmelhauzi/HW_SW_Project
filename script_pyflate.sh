@@ -161,6 +161,16 @@ cProfile.run('m.bench_pyflake(${PROFILE_LOOPS}, filename)', '${RESULTS_DIR}/cpro
   python3 -m flameprof "${RESULTS_DIR}/cprofile_${variant}.prof" \
       > "${RESULTS_DIR}/flameprof_${variant}.svg" \
     || die "flameprof rendering failed for ${variant}."
+
+  # perf stat: counters (task-clock, cycles, instructions, ...), -r 3 for a
+  # mean +- stddev. --worker runs pyperf in-process (no subprocess spawning);
+  # --loops 1 skips auto-calibration so both variants do identical work;
+  # --warmups 1 --values 20 = 1 discarded + 20 measured values.
+  log "Collecting perf stat counters for ${variant}"
+  perf stat -r 3 python3 "$script_path" \
+      --worker --loops 1 --warmups 1 --values 20 \
+      > "${RESULTS_DIR}/perfstat_${variant}.txt" 2>&1 \
+    || die "perf stat failed for ${variant}."
 }
 
 # ---------------------------------------------------------------------------
@@ -190,4 +200,5 @@ echo "  flamegraph_{original,optimized}.svg      - flame graphs (perf-based)"
 echo "  perf_report_{original,optimized}.txt     - perf report --stdio (hot symbols/callers)"
 echo "  cprofile_{original,optimized}.prof       - raw cProfile stats"
 echo "  flameprof_{original,optimized}.svg       - flame graphs (cProfile/flameprof-based)"
+echo "  perfstat_{original,optimized}.txt        - perf stat (-r 3) counters"
 echo "  compare.txt                              - performance comparison"

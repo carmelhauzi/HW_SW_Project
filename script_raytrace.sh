@@ -166,7 +166,7 @@ cProfile.run('m.bench_raytrace(${PROFILE_LOOPS}, ${WIDTH}, ${HEIGHT}, None)', '$
   # perf stat: counters (task-clock, cycles, instructions, ...), -r 3 for a
   # mean +- stddev. --worker runs pyperf in-process (no subprocess spawning);
   # --loops 1 skips auto-calibration so both variants do identical work;
-  # --warmups 1 --values 20 = 1 discarded + 20 measured renders.
+  # --warmups 1 --values 20 = 1 discarded + 20 measured values.
   log "Collecting perf stat counters for ${variant}"
   perf stat -r 3 python3 "$script_path" \
       --worker --loops 1 --warmups 1 --values 20 \
