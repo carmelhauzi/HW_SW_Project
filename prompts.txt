@@ -68,6 +68,40 @@ WARNING: the benchmark result may be unstable
 
 [2026-08-28] commit and push
 
+[2026-08-28] my teammate started working on this, so don't add the prompts yet. she did good optimizations for the nbody benchmark. we will focus on the raytrace. first check that you can run it. how much time does it take? also output a flamegraph, let me look at it
+
+[2026-08-28] use the virtualenv at "venv" folder
+
+[2026-08-28] generate the flamegraph as html file
+
+[2026-08-29] so install the missing python library inside the venv. can't we install perf on macOS?
+
+[2026-08-29] show me commands to run on the QEMU, that uses pyperformence to run the benchmark, and than generate a flamegraph. my instructor told me to generate flamegraph using pyperformence
+
+[2026-08-29] I've tried just the perf record command and got : Symbol resolution may be skewed if relocation was used (e.g. kexec).
+Check /proc/kallsyms permission or run as root.
+perf_event__synthesize_bpf_events: failed to synthesize bpf images: No such file or directory
+Couldn't synthesize bpf events.
+Failed to collect 'cpu-clock' for the ' ' workload: No such file or directory
+
+[2026-08-29] show me command to run the original version without line continuations
+
+[2026-08-29] the perf record also outputs "creating venv for benchmark (raytrace)". why is that ? I want it to perf only the code, only the original version of raytrace
+
+[2026-08-29] I think that running "pypeformance run" is equalivent to running the benchmark directly. am I correct? so if I want to make the branchmark run faster, I don't need to run "python -m pyperformance", right?
+
+[2026-08-29] but How can I make pyperformance run my version of the benchmark?
+
+[2026-08-29] I'm getting 600K from perf of perf.data . why running the flakegraph command tell me # perf script -i perf.data | ~/FlameGraph/stackcollapse-perf.pl | ~/FlameGraph/flamegraph.pl --title "raytrace (original)" > flamegraph-raytrace-original.svg
+Stack count is low (0). Did something go wrong?
+ERROR: No stack counts found
+
+[2026-08-29] I still get mostly Uknkown symbols. what might be missing?
+
+[2026-08-29] does it make sense to use perf on a python script?
+
+[2026-08-29] ok. so I'll run the python benchmark file myself. give me cProfile commands to output profiling data, and how to convert that to flamegraph. first check them locally
+
 [2026-08-29] I've had an optimization to _lightIsVisible. at the original profiling (rt_original.prof and flamegraph-raytrace-original.svg) the ray creation took 3.5 seconds total. I've optimized it to create less rays so at the optimized version profiling (rt_opt.prof and flame_opt.prof) it took only 0.5 seconds total. but the total running time went from 28 seconds to 21 seconds. did I understand it correctly? how is that possible?
 
 [2026-08-29] but the total time of init was 3.5 seconds, so even if we called less functions it's should appear under the 3.5 seconds. is that correct? maybe I've understood the numbers differently and it's not 3.5 seconds
