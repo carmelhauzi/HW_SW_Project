@@ -155,7 +155,7 @@ import run_benchmark as m
 cProfile.run('m.bench_raytrace(${PROFILE_LOOPS}, ${WIDTH}, ${HEIGHT}, None)', '${RESULTS_DIR}/cprofile_${variant}.prof')
 " || die "cProfile run failed for ${variant}."
   python3 -m flameprof "${RESULTS_DIR}/cprofile_${variant}.prof" \
-      > "${RESULTS_DIR}/flameprof_${variant}.svg" \
+      > "${RESULTS_DIR}/flamegraph_cprofile_${variant}.svg" \
     || die "flameprof rendering failed for ${variant}."
 
   # perf stat: counters (task-clock, cycles, instructions, ...), -r 3 for a
@@ -195,6 +195,6 @@ echo "  perf_{original,optimized}.data           - raw perf samples"
 echo "  flamegraph_{original,optimized}.svg      - flame graphs (perf-based)"
 echo "  perf_report_{original,optimized}.txt     - perf report --stdio (hot symbols/callers)"
 echo "  cprofile_{original,optimized}.prof       - raw cProfile stats"
-echo "  flameprof_{original,optimized}.svg       - flame graphs (cProfile/flameprof-based)"
+echo "  flamegraph_cprofile_{original,optimized}.svg - flame graphs (cProfile/flameprof-based)"
 echo "  perfstat_{original,optimized}.txt        - perf stat (-r 3) counters"
 echo "  compare.txt                              - performance comparison"
