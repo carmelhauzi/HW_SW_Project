@@ -193,3 +193,10 @@ python3 -m flameprof rt_original.prof > flamegraph-raytrace-original.svg
 
 [2026-09-04] can you add this call that create another flamegraph to the scripts? python3 -c "import cProfile, sys; sys.path.insert(0, 'benchmarks/raytrace/original'); import run_benchmark as m; cProfile.run('m.bench_raytrace(30, 100, 100, None)', 'rt_orig.prof')"
 python3 -m flameprof rt_orig.prof > flamegraph-raytrace-original.svg
+
+[2026-09-07] update readme, make it short with  the structure of the repository and 
+provides instructions on how to run the scripts
+
+[2026-09-07] what is the [normal|fast|rigorous] options? we need them? we want just the default
+
+[2026-09-07] commit and push

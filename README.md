@@ -1,26 +1,38 @@
 # HW_SW_Project
 
 Performance-optimization project based on two benchmarks from the
-[pyperformance](https://github.com/python/pyperformance) ("Python Performance
-Benchmark Suite"): **nbody** and **raytrace**. See
+[pyperformance](https://github.com/python/pyperformance) suite: **raytrace**
+and **pyflate**. Also includes a SystemVerilog RTL sketch of a hardware
+accelerator for the raytrace benchmark's sphere-intersection math. See
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for provenance/license info
 on the copied benchmark code.
 
-## Layout
+## Repository structure
 
 ```
 benchmarks/
-  manifest-original.txt   # tells the pyperformance CLI where the baseline benchmarks live
-  manifest-optimized.txt  # tells the pyperformance CLI where the optimized benchmarks live
-  nbody/
-    original/      # untouched baseline, do not edit
-    optimized/      # our modified/optimized version, starts as a copy of original
+  manifest-original.txt    # pyperformance manifest pointing at the baseline benchmarks
+  manifest-optimized.txt   # pyperformance manifest pointing at the optimized benchmarks
   raytrace/
-    original/      # untouched baseline, do not edit
-    optimized/      # our modified/optimized version, starts as a copy of original
+    original/              # untouched baseline, do not edit
+    optimized/              # our optimized version
+  pyflate/
+    original/              # untouched baseline, do not edit
+    optimized/              # our optimized version
+
+hw/rtl/                    # SystemVerilog: sphere-intersection accelerator sketch
+  ray_sphere_accelerator.sv  # top module
+  sphere_intersection_pipeline.sv
+  sphere_min_reducer.sv
+  sphere_storage.sv
+
 tests/
-  test_nbody.py     # asserts optimized output == original output
-  test_raytrace.py  # asserts optimized output == original output
+  test_raytrace.py         # asserts optimized output == original output
+  test_pyflate.py          # asserts optimized output == original output
+
+script_raytrace.sh         # end-to-end perf harness (perf/flamegraph) for raytrace
+script_pyflate.sh          # end-to-end perf harness (perf/flamegraph) for pyflate
+requirements.txt
 ```
 
 `original/` must stay byte-for-byte the upstream code so it always serves as
@@ -41,81 +53,59 @@ pip install -r requirements.txt
 pytest tests/ -v
 ```
 
-`test_nbody.py` runs `advance()`/`report_energy()` on both variants with the
-same inputs and checks the resulting energy values match. `test_raytrace.py`
-renders the same scene with both variants and checks the output pixels are
-identical. If you change behavior (not just speed) in `optimized/`, these
-will fail — that's the point.
+Each test runs both variants on the same inputs and checks the outputs
+match byte-for-byte / value-for-value. If you change behavior (not just
+speed) in `optimized/`, these will fail — that's the point.
 
 ## Performance: how fast is each version?
 
-There are two ways to measure performance, depending on what you need.
+### Option A: `script_raytrace.sh` / `script_pyflate.sh` (recommended)
 
-### Option A: the `pyperformance` CLI (recommended, this is "running pyperformance")
+These are the full harnesses used to produce the numbers in this project.
+Intended to run inside the course's QEMU environment (they need `perf`,
+`python3-dbg`, and the FlameGraph scripts on `PATH`), from the repo root:
 
-`pip install -r requirements.txt` also installs the `pyperformance` package
-itself. `benchmarks/manifest-original.txt` and `benchmarks/manifest-optimized.txt`
-point pyperformance at our two copies of each benchmark (one manifest per
-variant, since both copies declare the same benchmark names `nbody`/`raytrace`
-and pyperformance won't allow duplicate names in one manifest).
+```
+./script_raytrace.sh
+./script_pyflate.sh
+```
+
+Each script sets up the venv, runs the baseline and optimized variants
+through `pyperformance` under `perf record`, generates flame graphs
+(perf-based and cProfile/flameprof-based), collects `perf stat` counters,
+and writes everything to `results/<benchmark>/` (timings, raw perf data,
+flame graphs, perf reports, and a `compare.txt` summary).
+
+### Option B: the `pyperformance` CLI directly
 
 **Always run these commands from the repository root** — the manifest files
 use paths relative to the current directory.
 
 ```
-# sanity-check the manifest resolves correctly
-python -m pyperformance list --manifest benchmarks/manifest-original.txt
-
-# run the baseline
 python -m pyperformance run --manifest benchmarks/manifest-original.txt -o results_original.json
-
-# run our optimized version
 python -m pyperformance run --manifest benchmarks/manifest-optimized.txt -o results_optimized.json
-
-# compare
 python -m pyperformance compare results_original.json results_optimized.json
 ```
 
-Add `-b nbody` or `-b raytrace` to run just one benchmark, `--fast` while
-iterating, `--rigorous` for final numbers. Note: the first run creates an
-isolated virtual environment under `venv/` (gitignored) with each benchmark's
-declared dependencies (just `pyperf`) — this is normal pyperformance behavior
-and is reused on subsequent runs.
+Add `-b raytrace` or `-b pyflate` to run just one benchmark, `--fast` while
+iterating, `--rigorous` for final numbers.
 
-### Option B: run a `run_benchmark.py` directly with pyperf
-
-Each `run_benchmark.py` is also a self-contained [pyperf](https://pyperf.readthedocs.io/)
-benchmark script and can be run/compared without going through the
-`pyperformance` CLI or its manifest/venv machinery — useful for quick
-iteration or profiling.
-
-Run one version and save timing results to a JSON file:
+### Option C: run a `run_benchmark.py` directly with pyperf
 
 ```
-python benchmarks/nbody/original/run_benchmark.py -o results_nbody_original.json
-python benchmarks/nbody/optimized/run_benchmark.py -o results_nbody_optimized.json
-
 python benchmarks/raytrace/original/run_benchmark.py -o results_raytrace_original.json
 python benchmarks/raytrace/optimized/run_benchmark.py -o results_raytrace_optimized.json
-```
-
-Then compare original vs optimized:
-
-```
-python -m pyperf compare_to results_nbody_original.json results_nbody_optimized.json
 python -m pyperf compare_to results_raytrace_original.json results_raytrace_optimized.json
 ```
 
-(Note the results files from Option A and Option B aren't interchangeable inputs to each other's compare command — keep each option's outputs together.)
+Same pattern for `benchmarks/pyflate/`. Useful flags: `--fast`,
+`--rigorous`, `-p N` (worker processes), `--iterations`/`--width --height`
+(problem size).
 
-Useful flags while iterating (full runs are slow/rigorous by default):
-- `--fast` — fewer samples, quick sanity check of timing
-- `--rigorous` — more samples, higher-confidence result for final numbers
-- `-p N` — number of worker processes
-- `--iterations` (nbody) / `--width --height` (raytrace) — problem size
+## Hardware (hw/rtl)
 
-You can also profile a version directly with any standard tool, e.g.:
-
-```
-python -m cProfile -o nbody.prof benchmarks/nbody/optimized/run_benchmark.py --iterations 20000
-```
+`hw/rtl/` contains a behavioral SystemVerilog model of a pipelined
+sphere-intersection accelerator (`ray_sphere_accelerator.sv` is the top
+module, wiring together `sphere_storage`, `sphere_intersection_pipeline`,
+and `sphere_min_reducer`). It's a design exploration, not part of the
+Python benchmark/test flow above.
