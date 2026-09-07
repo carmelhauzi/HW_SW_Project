@@ -46,9 +46,9 @@ rm -rf "$RESULTS_DIR"
 mkdir -p "$RESULTS_DIR"
 
 case "$MODE" in
-  fast)     PYPERFORMANCE_FLAG="--fast";     PYPERF_FLAG="--fast" ;;
-  rigorous) PYPERFORMANCE_FLAG="--rigorous"; PYPERF_FLAG="--rigorous" ;;
-  normal)   PYPERFORMANCE_FLAG="";           PYPERF_FLAG="" ;;
+  fast)     PYPERFORMANCE_FLAG="--fast" ;;
+  rigorous) PYPERFORMANCE_FLAG="--rigorous" ;;
+  normal)   PYPERFORMANCE_FLAG="" ;;
   *) echo "Unknown mode '$MODE' (expected normal|fast|rigorous)" >&2; exit 1 ;;
 esac
 
@@ -140,12 +140,6 @@ run_variant() {
         -o "${RESULTS_DIR}/pyperformance_${variant}.json" \
     || die "perf record failed for ${variant}."
 
-  log "Running ${BENCH_NAME} (${variant}) via pyperf (for compare_to)"
-  python3 "$script_path" ${PYPERF_FLAG} \
-    --width "${WIDTH}" --height "${HEIGHT}" \
-    --filename "${RESULTS_DIR}/render_${variant}.ppm" \
-    -o "${RESULTS_DIR}/pyperf_${variant}.json"
-
   log "Generating flame graph for ${variant}"
   perf script -i "${RESULTS_DIR}/perf_${variant}.data" \
       | "$FLAMEGRAPH_DIR/stackcollapse-perf.pl" \
@@ -195,26 +189,17 @@ run_variant optimized
 # ---------------------------------------------------------------------------
 log "Comparing original vs. optimized"
 
-{
-  echo "== pyperformance compare =="
-  python3 -m pyperformance compare \
-    "${RESULTS_DIR}/pyperformance_original.json" \
-    "${RESULTS_DIR}/pyperformance_optimized.json"
-  echo
-  echo "== pyperf compare_to =="
-  python3 -m pyperf compare_to \
-    "${RESULTS_DIR}/pyperf_original.json" \
-    "${RESULTS_DIR}/pyperf_optimized.json"
-} | tee "${RESULTS_DIR}/compare.txt"
+python3 -m pyperformance compare \
+  "${RESULTS_DIR}/pyperformance_original.json" \
+  "${RESULTS_DIR}/pyperformance_optimized.json" \
+  | tee "${RESULTS_DIR}/compare.txt"
 
 log "Done. Artifacts written under ${RESULTS_DIR}/:"
 echo "  pyperformance_{original,optimized}.json  - pyperformance timing results"
-echo "  pyperf_{original,optimized}.json         - pyperf timing results"
 echo "  perf_{original,optimized}.data           - raw perf samples"
 echo "  flamegraph_{original,optimized}.svg      - flame graphs (perf-based)"
 echo "  perf_report_{original,optimized}.txt     - perf report --stdio (hot symbols/callers)"
 echo "  cprofile_{original,optimized}.prof       - raw cProfile stats"
 echo "  flameprof_{original,optimized}.svg       - flame graphs (cProfile/flameprof-based)"
 echo "  perfstat_{original,optimized}.txt        - perf stat (-r 3) counters"
-echo "  render_{original,optimized}.ppm          - rendered output images"
 echo "  compare.txt                              - performance comparison"
