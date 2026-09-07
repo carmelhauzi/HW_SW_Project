@@ -1,5 +1,7 @@
 # HW_SW_Project
 
+repository URL: https://github.com/carmelhauzi/HW_SW_Project
+
 Performance-optimization project based on two benchmarks from the
 [pyperformance](https://github.com/python/pyperformance) suite: **raytrace**
 and **pyflate**. Also includes a SystemVerilog RTL sketch of a hardware
