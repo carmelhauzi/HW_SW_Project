@@ -10,9 +10,9 @@
 # It will:
 #   1. Set up the environment (venv + dependencies, apt deps incl. perf +
 #      python3-dbg).
-#   2. Run the ORIGINAL (baseline) benchmark via pyperformance, profiled
-#      with `perf record -F 999 -e cpu-clock -g -- python3-dbg ...`
-#      (course staff's method) to produce a flame graph + performance data.
+#   2. Run the ORIGINAL (baseline) benchmark via pyperformance, profiled with
+#      `perf record -F 999 --call-graph dwarf -e cpu-clock -- python3-dbg ...`
+#      to produce a flame graph + performance data.
 #   3. Run the OPTIMIZED benchmark the same way.
 #   4. Compare original vs. optimized and print/save the results.
 #
@@ -98,28 +98,23 @@ python3 -m pip install --upgrade pip $PIP_USER_FLAG
 python3 -m pip install -r requirements.txt $PIP_USER_FLAG
 
 # ---------------------------------------------------------------------------
-# Helper: record `perf record`.
+# Helper: `perf record` for one variant.
 #
-# Uses the software cpu-clock event, not the default hardware "cycles"
-# event: this QEMU guest doesn't expose a working virtualized PMU, and
-# `perf record` on "cycles" can exit 0 while silently capturing zero real
-# samples (confirmed on this VM - flamegraph.pl then fails with "Stack
-# count is low (0)"), so a retry-on-nonzero-exit strategy can't even
-# detect the failure. cpu-clock is what's confirmed to actually work here.
+# -e cpu-clock : the QEMU guest has no working hardware PMU, so the default
+#   'cycles' event records zero samples (flamegraph.pl then fails with
+#   "Stack count is low (0)").
 #
-# Uses plain -g (--call-graph fp), matching the staff's command, not
-# --call-graph dwarf: dwarf makes perf copy an 8KB raw stack per sample and
-# then unwind every one of them in `perf script`, which is extremely slow
-# to post-process at -F 999 on a single-vCPU guest (confirmed: 52k samples
-# -> a 420MB perf.data that never finished processing) and roughly doubled
-# the profiled process's wall-clock time (486ms profiled vs. 232ms
-# unprofiled), skewing the timing numbers. python3-dbg is a debug build
-# (compiled -O0), so it keeps real frame pointers and fp unwinding should
-# resolve Python's call stack fine, at a fraction of the cost.
+# --call-graph dwarf : unwind call stacks from debug info instead of frame
+#   pointers, so frames resolve to real names instead of collapsing into
+#   [unknown]. Heavier than -g/fp (bigger perf.data, slower `perf script`);
+#   if a run stalls at flame-graph generation, drop -F 999 to e.g. -F 250 or
+#   switch back to plain -g.
+#
+# --no-bpf-event : skip BPF image metadata perf can't fetch on this guest.
 # ---------------------------------------------------------------------------
 run_perf_record() {
   local out_data="$1"; shift
-  perf record -F 999 -g -e cpu-clock -o "$out_data" -- "$@"
+  perf record -F 999 --call-graph dwarf --no-bpf-event -e cpu-clock -o "$out_data" -- "$@"
 }
 
 # ---------------------------------------------------------------------------
