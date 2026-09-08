@@ -11,7 +11,7 @@
 #   1. Set up the environment (venv + dependencies, apt deps incl. perf +
 #      python3-dbg).
 #   2. Run the ORIGINAL (baseline) benchmark via pyperformance, profiled with
-#      `perf record -F 999 --call-graph dwarf -e cpu-clock -- python3-dbg ...`
+#      `perf record -F 999 -g -e cpu-clock -- python3-dbg ...`
 #      to produce a flame graph + performance data.
 #   3. Run the OPTIMIZED benchmark the same way.
 #   4. Compare original vs. optimized and print/save the results.
@@ -105,18 +105,14 @@ python3 -m pip install -r requirements.txt $PIP_USER_FLAG
 # -e cpu-clock : the QEMU guest has no working hardware PMU, so the default
 #   'cycles' event records zero samples (flamegraph.pl then fails with
 #   "Stack count is low (0)").
-#
-# --call-graph dwarf : unwind call stacks from debug info instead of frame
-#   pointers, so frames resolve to real names instead of collapsing into
-#   [unknown]. Heavier than -g/fp (bigger perf.data, slower `perf script`);
-#   if a run stalls at flame-graph generation, drop -F 999 to e.g. -F 250 or
-#   switch back to plain -g.
-#
-# --no-bpf-event : skip BPF image metadata perf can't fetch on this guest.
+# -g (frame-pointer call graphs) : python3-dbg keeps frame pointers, so this
+#   resolves the stacks cheaply. --call-graph dwarf also resolves symbols but
+#   on this single-vCPU guest it produced a huge perf.data and a very slow
+#   `perf script` (impractical run times), so we stay on -g.
 # ---------------------------------------------------------------------------
 run_perf_record() {
   local out_data="$1"; shift
-  perf record -F 999 --call-graph dwarf --no-bpf-event -e cpu-clock -o "$out_data" -- "$@"
+  perf record -F 999 -g -e cpu-clock -o "$out_data" -- "$@"
 }
 
 # ---------------------------------------------------------------------------
